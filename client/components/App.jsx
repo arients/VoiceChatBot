@@ -4,10 +4,10 @@ import RealTimeConfiguration from "./RealTimeConfiguration";
 import RealTimeSession from "./RealTimeSession";
 
 export default function App() {
-  // Состояние текущего представления: 'menu' | 'configuration' | 'session'
+  // Текущее представление: 'menu' | 'configuration' | 'session'
   const [view, setView] = useState("menu");
 
-  // Состояние для отображения ошибок (например, лимит сессий)
+  // Состояние для отображения ошибок
   const [error, setError] = useState("");
 
   // Конфигурация Real-Time модели
@@ -16,7 +16,7 @@ export default function App() {
     instructions: "",
     microphoneId: "",
     startWithMicDisabled: false,
-    model: "gpt-4o-realtime-preview-2024-12-17", // добавляем model для использования в запросе
+    model: "gpt-4o-realtime-preview-2024-12-17", // добавляем модель для запроса
   });
 
   // Состояние сессии (например, статус работы и mute)
@@ -28,16 +28,15 @@ export default function App() {
   // Флаг, что сессия уже завершена (чтобы не отправлять /end повторно)
   const sessionEndedRef = useRef(false);
 
-  // Ссылки для хранения объектов соединения и аудиоэлемента
+  // Ссылки для хранения объектов соединения, аудиоэлемента и аудиоконтекста
   const peerConnection = useRef(null);
   const dataChannel = useRef(null);
   const audioElement = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
 
-  // Ref для хранения локального потока микрофона
+  // Ref для хранения локального потока микрофона и отправителя аудио-трека
   const localStreamRef = useRef(null);
-  // Ref для хранения отправителя аудио-трека в RTCPeerConnection
   const localAudioSenderRef = useRef(null);
   // Флаг, что микрофон был остановлен при уходе со страницы
   const micStoppedRef = useRef(false);
@@ -54,7 +53,7 @@ export default function App() {
       }
 
       try {
-        // Запрос разрешения для получения меток устройств
+        // Запрашиваем разрешение для получения меток устройств
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach((track) => track.stop());
 
@@ -104,6 +103,7 @@ export default function App() {
       const pc = new RTCPeerConnection();
       peerConnection.current = pc;
 
+      // Создаем аудиоэлемент для воспроизведения потока
       audioElement.current = document.createElement("audio");
       audioElement.current.crossOrigin = "anonymous";
       audioElement.current.autoplay = true;
@@ -119,7 +119,8 @@ export default function App() {
           ? { deviceId: { exact: config.microphoneId } }
           : true,
       };
-      // Получаем микрофон один раз и сохраняем поток
+
+      // Получаем микрофон и сохраняем поток
       const localStream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = localStream;
 
@@ -157,26 +158,23 @@ export default function App() {
       const answer = { type: "answer", sdp: answerSdp };
       await pc.setRemoteDescription(answer);
 
+      // Создаем или переиспользуем аудиоконтекст
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
 
+      // Соединяем аудио: микрофон + аудиоэлемент через merger
       const mergeAudio = async () => {
         const audioCtx = audioContextRef.current;
         if (!audioCtx) return;
 
-        // Создаем источники для микрофона и аудио элемента
         const micSource = audioCtx.createMediaStreamSource(localStreamRef.current);
         const aiSource = audioCtx.createMediaElementSource(audioElement.current);
-
-        // Объединяем аудио через ChannelMergerNode
         const merger = audioCtx.createChannelMerger(2);
         micSource.connect(merger, 0, 0);
         aiSource.connect(merger, 0, 1);
-
-        // Подключаем объединённый сигнал к анализатору
         merger.connect(analyserRef.current);
       };
 
@@ -190,14 +188,13 @@ export default function App() {
   }
 
   async function terminateSession() {
-    // Если сессия уже завершена, повторный вызов не выполняем
     if (sessionEndedRef.current) return;
 
     try {
       if (sessionState.status !== "idle") {
         await fetch("/end", { method: "POST" });
       }
-      sessionEndedRef.current = true; // Фиксируем, что сессия завершена
+      sessionEndedRef.current = true;
       if (peerConnection.current) {
         peerConnection.current.close();
         peerConnection.current = null;
@@ -237,48 +234,68 @@ export default function App() {
     setSessionState((prev) => ({ ...prev, muted: !prev.muted }));
   }
 
-  // Обработка событий для остановки/возобновления микрофона при потере/возвращении фокуса
+  // Функции для паузы и возобновления работы микрофона
+  async function pauseMicrophone() {
+    if (localStreamRef.current && !micStoppedRef.current) {
+      // Останавливаем треки микрофона
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+      if (localAudioSenderRef.current) {
+        await localAudioSenderRef.current.replaceTrack(null);
+      }
+      // Приостанавливаем аудиоконтекст
+      if (audioContextRef.current && audioContextRef.current.state !== "suspended") {
+        await audioContextRef.current.suspend();
+      }
+      // Очищаем источник аудиоэлемента
+      if (audioElement.current) {
+        audioElement.current.srcObject = null;
+        audioElement.current.pause();
+      }
+      micStoppedRef.current = true;
+      console.log("Микрофон остановлен (страница не активна).");
+    }
+  }
+
+  async function resumeMicrophone() {
+    if (micStoppedRef.current) {
+      // Возобновляем аудиоконтекст, если он приостановлен
+      if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+      let newStream;
+      const constraints = config.microphoneId
+        ? { audio: { deviceId: { exact: config.microphoneId } } }
+        : { audio: true };
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        console.warn("Выбранный микрофон недоступен, используем дефолтный", err);
+        newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const defaultTrack = newStream.getAudioTracks()[0];
+        const settings = defaultTrack.getSettings();
+        setConfig((prev) => ({ ...prev, microphoneId: settings.deviceId || "" }));
+      }
+      const newAudioTrack = newStream.getAudioTracks()[0];
+      if (sessionState.muted) {
+        newAudioTrack.enabled = false;
+      }
+      if (localAudioSenderRef.current) {
+        await localAudioSenderRef.current.replaceTrack(newAudioTrack);
+      }
+      localStreamRef.current = newStream;
+      // Если аудиоэлемент существует, переназначаем источник
+      if (audioElement.current) {
+        audioElement.current.srcObject = newStream;
+      }
+      // Возможна повторная настройка объединения аудио, если это требуется
+      micStoppedRef.current = false;
+      console.log("Микрофон возобновлён (страница активна).");
+    }
+  }
+
+  // Обработка событий изменения видимости и фокуса
   useEffect(() => {
-    async function pauseMicrophone() {
-      if (localStreamRef.current && !micStoppedRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-        if (localAudioSenderRef.current) {
-          await localAudioSenderRef.current.replaceTrack(null);
-        }
-        micStoppedRef.current = true;
-        console.log("Микрофон остановлен (страница не активна).");
-      }
-    }
-
-    async function resumeMicrophone() {
-      if (micStoppedRef.current) {
-        let newStream;
-        const constraints = config.microphoneId
-          ? { audio: { deviceId: { exact: config.microphoneId } } }
-          : { audio: true };
-        try {
-          newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          console.warn("Выбранный микрофон недоступен, используем дефолтный", err);
-          newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const defaultTrack = newStream.getAudioTracks()[0];
-          const settings = defaultTrack.getSettings();
-          setConfig((prev) => ({ ...prev, microphoneId: settings.deviceId || "" }));
-        }
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        if (sessionState.muted) {
-          newAudioTrack.enabled = false;
-        }
-        if (localAudioSenderRef.current) {
-          await localAudioSenderRef.current.replaceTrack(newAudioTrack);
-        }
-        localStreamRef.current = newStream;
-        micStoppedRef.current = false;
-        console.log("Микрофон возобновлён (страница активна).");
-      }
-    }
-
     function handleVisibilityChange() {
       if (document.hidden) {
         pauseMicrophone();
