@@ -33,10 +33,9 @@ let activeSessions = 0;
 server.post("/token", async (request, reply) => {
   const { model, voice, instructions } = request.body;
 
-  // Проверка лимита активных сессий
   if (activeSessions >= MAX_SESSIONS) {
     reply.status(429);
-    return { error: "API перегружено, подождите немного" };
+    return { error: "API is overloaded, please wait a bit" };
   }
 
   try {
@@ -57,19 +56,11 @@ server.post("/token", async (request, reply) => {
 
     if (!r.ok) {
       reply.status(r.status);
-      // Возвращаем подробную информацию об ошибке
       return { error: data };
     }
 
-    // Увеличиваем счётчик активных сессий
     activeSessions++;
-    server.log.info("Новая сессия запущена. Активных сессий: " + activeSessions);
-
-    // Через 5 минут (300 секунд) сессия считается завершённой
-    setTimeout(() => {
-      activeSessions--;
-      server.log.info("Сессия завершена по таймауту. Активных сессий: " + activeSessions);
-    }, 300 * 1000);
+    server.log.info("New session started. Active sessions: " + activeSessions);
 
     reply.header("Content-Type", "application/json");
     return data;
@@ -81,7 +72,7 @@ server.post("/token", async (request, reply) => {
 
 server.post('/end', async (request, reply) => {
   activeSessions = Math.max(activeSessions - 1, 0);
-  server.log.info(`Сессия завершена клиентом. Активных: ${activeSessions}`);
+  server.log.info(`Session ended by client. Active sessions: ${activeSessions}`);
   reply.send({ status: 'ok' });
 });
 
@@ -93,7 +84,6 @@ server.get("/prompt", async (request, reply) => {
   ];
   const randomTopic = topics[Math.floor(Math.random() * topics.length)];
 
-  // Construct the prompt message for the OpenAI Chat API
   const promptMessage = `Create a text instruction for the AI that defines its communication style with the user. The instruction should be concise, written in a single paragraph, and include only interaction rules without greetings or unnecessary details. Each time, generate a new, original instruction to make the AI unique. You can give it a personality, style, or a distinctive manner of communication.. Theme: ${randomTopic}.`;
 
   try {
@@ -104,7 +94,7 @@ server.get("/prompt", async (request, reply) => {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo", // Use the chat model with the chat completions endpoint
+        model: "gpt-3.5-turbo",
         messages: [
           { role: "user", content: promptMessage }
         ],
@@ -121,7 +111,6 @@ server.get("/prompt", async (request, reply) => {
       return { error: data };
     }
 
-    // For chat completions, the generated text is in data.choices[0].message.content
     const generatedInstruction = data.choices[0]?.message?.content?.trim() || "No instruction generated.";
     return { instruction: generatedInstruction };
   } catch (err) {
@@ -135,6 +124,6 @@ await server.listen({
   port: process.env.PORT || 3001,
   host: '0.0.0.0',
   listenTextResolver: (address) => {
-    return `Server listening on http://${address}`;
+    return `Server listening on ${address}`;
   }
 });

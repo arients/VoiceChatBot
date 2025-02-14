@@ -37,7 +37,7 @@ const CircleAnimation = ({ audioContext, analyser, isMuted }) => {
 
     const pi = Math.PI;
     const points = 12;
-    baseRadius.current = 140 * dpr;
+    baseRadius.current = 440 * dpr;
     const center = { x: w / 2, y: h / 2 };
 
     const lerp = (a, b, t) => a * (1 - t) + b * t;
