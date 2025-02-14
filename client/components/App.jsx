@@ -8,7 +8,7 @@ export default function App() {
   const [view, setView] = useState("menu");
 
   // Состояние для отображения ошибок (например, лимит сессий)
-  const [Error, setError] = useState("");
+  const [error, setError] = useState("");
 
   // Конфигурация Real-Time модели
   const [config, setConfig] = useState({
@@ -16,6 +16,7 @@ export default function App() {
     instructions: "",
     microphoneId: "",
     startWithMicDisabled: false,
+    model: "gpt-4o-realtime-preview-2024-12-17", // добавляем model для использования в запросе
   });
 
   // Состояние сессии (например, статус работы и mute)
@@ -82,7 +83,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-12-17",
+          model: config.model,
           voice: config.voice,
           instructions: config.instructions,
         }),
@@ -162,7 +163,7 @@ export default function App() {
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
 
-      const mergeAudio = () => {
+      const mergeAudio = async () => {
         const audioCtx = audioContextRef.current;
         if (!audioCtx) return;
 
@@ -175,10 +176,9 @@ export default function App() {
         micSource.connect(merger, 0, 0);
         aiSource.connect(merger, 0, 1);
 
-        // Подключаем объединенный сигнал к анализатору
+        // Подключаем объединённый сигнал к анализатору
         merger.connect(analyserRef.current);
       };
-
 
       await mergeAudio();
 
@@ -237,49 +237,69 @@ export default function App() {
     setSessionState((prev) => ({ ...prev, muted: !prev.muted }));
   }
 
-  // Обработка события visibilitychange:
-  // При уходе со страницы полностью останавливаем и сбрасываем локальный поток,
-  // а при возвращении пытаемся получить именно выбранный микрофон (с фолбэком, если он недоступен)
+  // Обработка событий для остановки/возобновления микрофона при потере/возвращении фокуса
   useEffect(() => {
-    async function handleVisibilityChange() {
-      if (document.hidden) {
-        if (localStreamRef.current && !micStoppedRef.current) {
-          localStreamRef.current.getTracks().forEach((track) => track.stop());
-          localStreamRef.current = null;
-          if (localAudioSenderRef.current) {
-            await localAudioSenderRef.current.replaceTrack(null);
-          }
-          micStoppedRef.current = true;
+    async function pauseMicrophone() {
+      if (localStreamRef.current && !micStoppedRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+        if (localAudioSenderRef.current) {
+          await localAudioSenderRef.current.replaceTrack(null);
         }
-      } else {
-        if (micStoppedRef.current) {
-          let newStream;
-          const constraints = config.microphoneId
-            ? { audio: { deviceId: { exact: config.microphoneId } } }
-            : { audio: true };
-          try {
-            newStream = await navigator.mediaDevices.getUserMedia(constraints);
-          } catch (err) {
-            console.warn("Выбранный микрофон недоступен, используем дефолтный");
-            newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const defaultTrack = newStream.getAudioTracks()[0];
-            const settings = defaultTrack.getSettings();
-            setConfig((prev) => ({ ...prev, microphoneId: settings.deviceId || "" }));
-          }
-          const newAudioTrack = newStream.getAudioTracks()[0];
-          if (sessionState.muted) {
-            newAudioTrack.enabled = false;
-          }
-          if (localAudioSenderRef.current) {
-            await localAudioSenderRef.current.replaceTrack(newAudioTrack);
-          }
-          localStreamRef.current = newStream;
-          micStoppedRef.current = false;
-        }
+        micStoppedRef.current = true;
+        console.log("Микрофон остановлен (страница не активна).");
       }
     }
+
+    async function resumeMicrophone() {
+      if (micStoppedRef.current) {
+        let newStream;
+        const constraints = config.microphoneId
+          ? { audio: { deviceId: { exact: config.microphoneId } } }
+          : { audio: true };
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          console.warn("Выбранный микрофон недоступен, используем дефолтный", err);
+          newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const defaultTrack = newStream.getAudioTracks()[0];
+          const settings = defaultTrack.getSettings();
+          setConfig((prev) => ({ ...prev, microphoneId: settings.deviceId || "" }));
+        }
+        const newAudioTrack = newStream.getAudioTracks()[0];
+        if (sessionState.muted) {
+          newAudioTrack.enabled = false;
+        }
+        if (localAudioSenderRef.current) {
+          await localAudioSenderRef.current.replaceTrack(newAudioTrack);
+        }
+        localStreamRef.current = newStream;
+        micStoppedRef.current = false;
+        console.log("Микрофон возобновлён (страница активна).");
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        pauseMicrophone();
+      } else {
+        resumeMicrophone();
+      }
+    }
+
+    window.addEventListener("blur", pauseMicrophone);
+    window.addEventListener("focus", resumeMicrophone);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", pauseMicrophone);
+    window.addEventListener("pageshow", resumeMicrophone);
+
+    return () => {
+      window.removeEventListener("blur", pauseMicrophone);
+      window.removeEventListener("focus", resumeMicrophone);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", pauseMicrophone);
+      window.removeEventListener("pageshow", resumeMicrophone);
+    };
   }, [config.microphoneId, sessionState.muted]);
 
   useEffect(() => {
@@ -312,9 +332,9 @@ export default function App() {
   return (
     <div className="app-container min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd]">
       {/* Уведомление об ошибке */}
-      {Error && (
+      {error && (
         <div className="api-error fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded z-50">
-          {Error}
+          {error}
           <button onClick={() => setError("")} className="ml-4 text-white font-bold">
             X
           </button>
