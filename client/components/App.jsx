@@ -43,7 +43,6 @@ export default function App() {
 
   const [microphones, setMicrophones] = useState([]);
   const [isMicLoading, setIsMicLoading] = useState(true);
-  const [isPageVisible, setIsPageVisible] = useState(true);
 
   useEffect(() => {
     const getMicrophones = async () => {
@@ -75,58 +74,6 @@ export default function App() {
 
     getMicrophones();
   }, [setConfig, config.microphoneId]);
-
-  useEffect(() => {
-    // Обработчик изменения видимости страницы
-    const handleVisibilityChange = () => {
-      const isVisible = document.visibilityState === 'visible';
-      setIsPageVisible(isVisible);
-
-      if (!isVisible && localStreamRef.current) {
-        // Останавливаем микрофон при скрытии страницы
-        localStreamRef.current.getTracks().forEach(track => track.stop());
-        micStoppedRef.current = true;
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
-
-  useEffect(() => {
-    const restoreMicrophone = async () => {
-      if (isPageVisible && micStoppedRef.current && view === 'session') {
-        try {
-          const constraints = {
-            audio: config.microphoneId
-              ? { deviceId: { exact: config.microphoneId } }
-              : true,
-          };
-
-          const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-          localStreamRef.current = newStream;
-
-          // Восстанавливаем состояние mute
-          newStream.getAudioTracks().forEach(track => {
-            track.enabled = !sessionState.muted;
-          });
-
-          // Заменяем трек в соединении
-          const sender = localAudioSenderRef.current;
-          if (sender) {
-            await sender.replaceTrack(newStream.getAudioTracks()[0]);
-          }
-
-          micStoppedRef.current = false;
-        } catch (error) {
-          console.error('Microphone restore failed:', error);
-          setError('Failed to restore microphone');
-        }
-      }
-    };
-
-    restoreMicrophone();
-  }, [isPageVisible, view, config.microphoneId, sessionState.muted]);
 
   async function startSession() {
     console.log("Starting Real-Time session with configuration:", config);
@@ -273,8 +220,6 @@ export default function App() {
       }
     } catch (err) {
       setError("Error ending session: " + err.message);
-    } finally {
-      micStoppedRef.current = false;
     }
     setSessionState({ status: "idle", muted: false });
     setView("menu");
@@ -291,6 +236,51 @@ export default function App() {
     }
     setSessionState((prev) => ({ ...prev, muted: !prev.muted }));
   }
+
+  // Обработка события visibilitychange:
+  // При уходе со страницы полностью останавливаем и сбрасываем локальный поток,
+  // а при возвращении пытаемся получить именно выбранный микрофон (с фолбэком, если он недоступен)
+  useEffect(() => {
+    async function handleVisibilityChange() {
+      if (document.hidden) {
+        if (localStreamRef.current && !micStoppedRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+          if (localAudioSenderRef.current) {
+            await localAudioSenderRef.current.replaceTrack(null);
+          }
+          micStoppedRef.current = true;
+        }
+      } else {
+        if (micStoppedRef.current) {
+          let newStream;
+          const constraints = config.microphoneId
+            ? { audio: { deviceId: { exact: config.microphoneId } } }
+            : { audio: true };
+          try {
+            newStream = await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (err) {
+            console.warn("Выбранный микрофон недоступен, используем дефолтный");
+            newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const defaultTrack = newStream.getAudioTracks()[0];
+            const settings = defaultTrack.getSettings();
+            setConfig((prev) => ({ ...prev, microphoneId: settings.deviceId || "" }));
+          }
+          const newAudioTrack = newStream.getAudioTracks()[0];
+          if (sessionState.muted) {
+            newAudioTrack.enabled = false;
+          }
+          if (localAudioSenderRef.current) {
+            await localAudioSenderRef.current.replaceTrack(newAudioTrack);
+          }
+          localStreamRef.current = newStream;
+          micStoppedRef.current = false;
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [config.microphoneId, sessionState.muted]);
 
   useEffect(() => {
     function handleBeforeUnload() {
@@ -376,4 +366,3 @@ export default function App() {
     </div>
   );
 }
-
