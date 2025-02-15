@@ -1,104 +1,136 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import ModelSelection from "./ModelSelection";
 import RealTimeConfiguration from "./RealTimeConfiguration";
 import RealTimeSession from "./RealTimeSession";
 
 export default function App() {
+  // Состояние текущего представления: 'menu' | 'configuration' | 'session'
   const [view, setView] = useState("menu");
-  const [error, setError] = useState("");
+
+  // Состояние для отображения ошибок (например, лимит сессий)
+  const [Error, setError] = useState("");
+
+  // Конфигурация Real-Time модели
   const [config, setConfig] = useState({
     voice: "alloy",
     instructions: "",
     microphoneId: "",
     startWithMicDisabled: false,
   });
+
+  // Состояние сессии (например, статус работы и mute)
   const [sessionState, setSessionState] = useState({
-    status: "idle",
+    status: "idle", // Возможные значения: "idle", "session active...", и т.д.
     muted: false,
   });
-  const [microphones, setMicrophones] = useState([]);
-  const [isMicLoading, setIsMicLoading] = useState(true);
 
-  const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  // Флаг, что сессия уже завершена (чтобы не отправлять /end повторно)
   const sessionEndedRef = useRef(false);
+
+  // Ссылки для хранения объектов соединения и аудиоэлемента
   const peerConnection = useRef(null);
   const dataChannel = useRef(null);
   const audioElement = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
+
+  // Ref для хранения локального потока микрофона
   const localStreamRef = useRef(null);
+  // Ref для хранения отправителя аудио-трека в RTCPeerConnection
   const localAudioSenderRef = useRef(null);
+  // Флаг, что микрофон был остановлен при уходе со страницы
   const micStoppedRef = useRef(false);
 
-  // Получение списка микрофонов с обработкой iOS
-  const getMicrophones = useCallback(async () => {
-    try {
-      if (!navigator.mediaDevices?.enumerateDevices) {
-        throw new Error("MediaDevices API not supported");
+  const [microphones, setMicrophones] = useState([]);
+  const [isMicLoading, setIsMicLoading] = useState(true);
+  const [isPageVisible, setIsPageVisible] = useState(true);
+
+  useEffect(() => {
+    const getMicrophones = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        console.warn("MediaDevices API не поддерживается в этом браузере.");
+        setIsMicLoading(false);
+        return;
       }
 
-      if (isiOS) {
-        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        tempStream.getTracks().forEach(track => track.stop());
+      try {
+        // Запрос разрешения для получения меток устройств
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter((device) => device.kind === "audioinput");
+
+        setMicrophones(mics);
+
+        if (mics.length > 0 && !config.microphoneId) {
+          setConfig((prev) => ({ ...prev, microphoneId: mics[0].deviceId }));
+        }
+      } catch (err) {
+        console.error("Ошибка доступа к микрофону:", err);
+      } finally {
+        setIsMicLoading(false);
       }
+    };
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioDevices = devices
-        .filter(d => d.kind === "audioinput")
-        .map(d => ({ ...d, label: d.label || `Microphone ${devices.indexOf(d) + 1}` }));
+    getMicrophones();
+  }, [setConfig, config.microphoneId]);
 
-      setMicrophones(audioDevices);
-      if (audioDevices.length > 0 && !config.microphoneId) {
-        setConfig(prev => ({ ...prev, microphoneId: audioDevices[0].deviceId }));
-      }
-    } catch (error) {
-      console.error("Microphone access error:", error);
-      setError("Microphone access required");
-    } finally {
-      setIsMicLoading(false);
-    }
-  }, [config.microphoneId, isiOS]);
+  useEffect(() => {
+    // Обработчик изменения видимости страницы
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      setIsPageVisible(isVisible);
 
-  // Обработчик изменения видимости страницы
-  const handleVisibilityChange = useCallback(() => {
-    if (document.hidden || document.visibilityState === "hidden") {
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => {
-          track.stop();
-          track.enabled = false;
-        });
-        localStreamRef.current = null;
+      if (!isVisible && localStreamRef.current) {
+        // Останавливаем микрофон при скрытии страницы
+        localStreamRef.current.getTracks().forEach(track => track.stop());
         micStoppedRef.current = true;
       }
-    }
-  }, []);
-
-  // Обработчик изменения устройств
-  const handleDeviceChange = useCallback(() => {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      const audioDevices = devices.filter(d => d.kind === "audioinput");
-      setMicrophones(audioDevices);
-    });
-  }, []);
-
-  // Инициализация микрофонов и событий
-  useEffect(() => {
-    getMicrophones();
-
-    const events = ["visibilitychange", "pagehide", "blur"];
-    events.forEach(e => window.addEventListener(e, handleVisibilityChange));
-    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
-
-    return () => {
-      events.forEach(e => window.removeEventListener(e, handleVisibilityChange));
-      navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
-      localStreamRef.current?.getTracks().forEach(track => track.stop());
     };
-  }, [getMicrophones, handleDeviceChange, handleVisibilityChange]);
 
-  const startSession = useCallback(async () => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    const restoreMicrophone = async () => {
+      if (isPageVisible && micStoppedRef.current && view === 'session') {
+        try {
+          const constraints = {
+            audio: config.microphoneId
+              ? { deviceId: { exact: config.microphoneId } }
+              : true,
+          };
+
+          const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+          localStreamRef.current = newStream;
+
+          // Восстанавливаем состояние mute
+          newStream.getAudioTracks().forEach(track => {
+            track.enabled = !sessionState.muted;
+          });
+
+          // Заменяем трек в соединении
+          const sender = localAudioSenderRef.current;
+          if (sender) {
+            await sender.replaceTrack(newStream.getAudioTracks()[0]);
+          }
+
+          micStoppedRef.current = false;
+        } catch (error) {
+          console.error('Microphone restore failed:', error);
+          setError('Failed to restore microphone');
+        }
+      }
+    };
+
+    restoreMicrophone();
+  }, [isPageVisible, view, config.microphoneId, sessionState.muted]);
+
+  async function startSession() {
+    console.log("Starting Real-Time session with configuration:", config);
     try {
-      console.log("Starting session with config:", config);
       const tokenResponse = await fetch("/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,129 +142,198 @@ export default function App() {
       });
 
       const tokenData = await tokenResponse.json();
-      if (!tokenData.client_secret) throw new Error("Invalid server response");
+      if (tokenData.error) {
+        throw new Error("Error creating session: " + JSON.stringify(tokenData.error));
+      }
+      if (!tokenData.client_secret) {
+        throw new Error("Client Secret missing in response: " + JSON.stringify(tokenData));
+      }
 
+      // Сброс флага завершения сессии при старте новой сессии
       sessionEndedRef.current = false;
-      const EPHEMERAL_KEY = tokenData.client_secret.value;
 
-      // Инициализация WebRTC
+      const EPHEMERAL_KEY = tokenData.client_secret.value;
       const pc = new RTCPeerConnection();
       peerConnection.current = pc;
 
-      // Создание аудио элемента
       audioElement.current = document.createElement("audio");
       audioElement.current.crossOrigin = "anonymous";
       audioElement.current.autoplay = true;
-      pc.ontrack = e => e.streams[0] && (audioElement.current.srcObject = e.streams[0]);
 
-      // Получение микрофона
-      const constraints = config.microphoneId
-        ? { deviceId: { exact: config.microphoneId } }
-        : true;
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+      pc.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          audioElement.current.srcObject = event.streams[0];
+        }
+      };
+
+      const constraints = {
+        audio: config.microphoneId
+          ? { deviceId: { exact: config.microphoneId } }
+          : true,
+      };
+      // Получаем микрофон один раз и сохраняем поток
+      const localStream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = localStream;
 
       if (config.startWithMicDisabled) {
-        localStream.getAudioTracks().forEach(track => track.enabled = false);
-        setSessionState(prev => ({ ...prev, muted: true }));
+        localStream.getAudioTracks().forEach((track) => {
+          track.enabled = false;
+        });
+        setSessionState((prev) => ({ ...prev, muted: true }));
       }
 
-      // Добавление трека в соединение
-      const audioTrack = localStream.getAudioTracks()[0];
-      const sender = pc.addTrack(audioTrack, localStream);
-      localAudioSenderRef.current = sender;
+      // Добавляем аудио-трек в соединение и сохраняем отправителя
+      const audioTracks = localStream.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const sender = pc.addTrack(audioTracks[0], localStream);
+        localAudioSenderRef.current = sender;
+      }
 
-      // Создание data channel
       const dc = pc.createDataChannel("oai-events");
       dataChannel.current = dc;
 
-      // Установка соединения
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(config.model)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${EPHEMERAL_KEY}`,
-            "Content-Type": "application/sdp",
-          },
-          body: offer.sdp,
-        }
-      );
+      const apiUrl = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(config.model)}`;
+      const sdpResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${EPHEMERAL_KEY}`,
+          "Content-Type": "application/sdp",
+        },
+        body: offer.sdp,
+      });
 
-      const answer = await sdpResponse.text();
-      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+      const answerSdp = await sdpResponse.text();
+      const answer = { type: "answer", sdp: answerSdp };
+      await pc.setRemoteDescription(answer);
 
-      // Инициализация аудио анализатора
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
 
-      // Настройка аудио микшера
-      const micSource = audioContextRef.current.createMediaStreamSource(localStream);
-      const aiSource = audioContextRef.current.createMediaElementSource(audioElement.current);
-      const merger = audioContextRef.current.createChannelMerger(2);
-      micSource.connect(merger, 0, 0);
-      aiSource.connect(merger, 0, 1);
-      merger.connect(analyserRef.current);
+      const mergeAudio = () => {
+        const audioCtx = audioContextRef.current;
+        if (!audioCtx) return;
 
-      setSessionState(prev => ({ ...prev, status: "session active..." }));
+        // Создаем источники для микрофона и аудио элемента
+        const micSource = audioCtx.createMediaStreamSource(localStreamRef.current);
+        const aiSource = audioCtx.createMediaElementSource(audioElement.current);
+
+        // Объединяем аудио через ChannelMergerNode
+        const merger = audioCtx.createChannelMerger(2);
+        micSource.connect(merger, 0, 0);
+        aiSource.connect(merger, 0, 1);
+
+        // Подключаем объединенный сигнал к анализатору
+        merger.connect(analyserRef.current);
+      };
+
+
+      await mergeAudio();
+
+      setSessionState((prev) => ({ ...prev, status: "session active..." }));
       setView("session");
     } catch (err) {
-      setError(`Session start failed: ${err.message}`);
-      terminateSession();
+      setError("Failed to create session: " + err.message);
     }
-  }, [config]);
+  }
 
-  const terminateSession = useCallback(async () => {
+  async function terminateSession() {
+    // Если сессия уже завершена, повторный вызов не выполняем
     if (sessionEndedRef.current) return;
-    sessionEndedRef.current = true;
 
     try {
-      if (sessionState.status !== "idle") await fetch("/end", { method: "POST" });
-
-      peerConnection.current?.close();
-      dataChannel.current?.close();
-      audioContextRef.current?.close();
-      audioElement.current?.pause();
-      localStreamRef.current?.getTracks().forEach(track => track.stop());
-
-      peerConnection.current = null;
-      dataChannel.current = null;
-      audioContextRef.current = null;
-      audioElement.current = null;
-      localStreamRef.current = null;
+      if (sessionState.status !== "idle") {
+        await fetch("/end", { method: "POST" });
+      }
+      sessionEndedRef.current = true; // Фиксируем, что сессия завершена
+      if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+      }
+      if (dataChannel.current) {
+        dataChannel.current.close();
+        dataChannel.current = null;
+      }
+      if (audioContextRef.current) {
+        await audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      if (audioElement.current) {
+        audioElement.current.pause();
+        audioElement.current = null;
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
     } catch (err) {
-      console.error("Session termination error:", err);
+      setError("Error ending session: " + err.message);
+    } finally {
+      micStoppedRef.current = false;
     }
-
     setSessionState({ status: "idle", muted: false });
     setView("menu");
-  }, [sessionState.status]);
+  }
 
-  const toggleMute = useCallback(() => {
-    if (localStreamRef.current) {
-      const newState = !sessionState.muted;
-      localStreamRef.current.getAudioTracks().forEach(track => track.enabled = newState);
-      setSessionState(prev => ({ ...prev, muted: newState }));
+  function toggleMute() {
+    if (peerConnection.current && localStreamRef.current) {
+      const senders = peerConnection.current.getSenders();
+      senders.forEach((sender) => {
+        if (sender.track && sender.track.kind === "audio") {
+          sender.track.enabled = !sender.track.enabled;
+        }
+      });
     }
-  }, [sessionState.muted]);
+    setSessionState((prev) => ({ ...prev, muted: !prev.muted }));
+  }
+
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (sessionState.status !== "idle" && !sessionEndedRef.current) {
+        navigator.sendBeacon("/end");
+        sessionEndedRef.current = true;
+        if (peerConnection.current) {
+          peerConnection.current.close();
+          peerConnection.current = null;
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+          audioContextRef.current = null;
+        }
+        if (audioElement.current) {
+          audioElement.current.pause();
+          audioElement.current = null;
+        }
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        }
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [sessionState.status]);
 
   return (
     <div className="app-container min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd]">
-      {error && (
+      {/* Уведомление об ошибке */}
+      {Error && (
         <div className="api-error fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded z-50">
-          {error}
+          {Error}
           <button onClick={() => setError("")} className="ml-4 text-white font-bold">
-            ✕
+            X
           </button>
         </div>
       )}
 
-      {view === "menu" && <ModelSelection onSelectRealTime={() => setView("configuration")} />}
-
+      {view === "menu" && (
+        <ModelSelection onSelectRealTime={() => setView("configuration")} />
+      )}
       {view === "configuration" && (
         <RealTimeConfiguration
           config={config}
@@ -241,9 +342,10 @@ export default function App() {
             try {
               const response = await fetch("/prompt");
               const data = await response.json();
-              setConfig(prev => ({ ...prev, instructions: data.instruction }));
+              setConfig((prev) => ({ ...prev, instructions: data.instruction }));
+              console.log("Received prompt:", data.instruction);
             } catch (err) {
-              console.error("Prompt generation failed:", err);
+              console.error("Failed to fetch prompt:", err);
             }
           }}
           onModelCreate={startSession}
@@ -251,7 +353,6 @@ export default function App() {
           microphones={microphones}
         />
       )}
-
       {view === "session" && (
         <RealTimeSession
           sessionState={sessionState}
@@ -261,7 +362,6 @@ export default function App() {
           analyser={analyserRef.current}
         />
       )}
-
       {view === "configuration" && (
         <button
           onClick={() => setView("menu")}
@@ -276,3 +376,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -5,28 +5,9 @@ export default function RealTimeConfiguration({
                                                 setConfig,
                                                 onCreatePrompt,
                                                 onModelCreate,
+                                                isMicLoading,
+                                                microphones
                                               }) {
-  const [microphones, setMicrophones] = useState([]);
-  const [isMicLoading, setIsMicLoading] = useState(true);
-
-  useEffect(() => {
-    const getMicrophones = async () => {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const mics = devices.filter((device) => device.kind === "audioinput");
-        setMicrophones(mics);
-        if (mics.length > 0 && !config.microphoneId) {
-          setConfig((prev) => ({ ...prev, microphoneId: mics[0].deviceId }));
-        }
-      } catch (err) {
-        console.error("Microphone access error:", err);
-      } finally {
-        setIsMicLoading(false);
-      }
-    };
-    getMicrophones();
-  }, [setConfig, config.microphoneId]);
 
   const voiceOptions = [
     { value: "alloy", label: "Alloy" },
