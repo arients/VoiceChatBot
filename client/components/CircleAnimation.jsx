@@ -37,7 +37,7 @@ const CircleAnimation = ({ audioContext, analyser, isMuted }) => {
 
     const pi = Math.PI;
     const points = 12;
-    baseRadius.current = 190 * dpr;
+    baseRadius.current = 120 * dpr;
     const center = { x: w / 2, y: h / 2 };
 
     const lerp = (a, b, t) => a * (1 - t) + b * t;
@@ -109,12 +109,21 @@ const CircleAnimation = ({ audioContext, analyser, isMuted }) => {
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(dataArray);
+      console.log(dataArray);
       const sum = dataArray.reduce((a, b) => a + b, 0);
       return Math.min(sum / dataArray.length / 255, 0.5);
     };
 
     const animate = () => {
-      if (!isMounted.current) return;
+      if (!isMounted.current || !analyser) return;
+
+      // Добавляем проверку состояния аудио контекста
+      if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          animationFrameId.current = requestAnimationFrame(animate);
+        });
+        return;
+      }
 
       const rawAudioLevel = updateAudioLevel();
       const smoothAudioLevel = lerp(0.1, rawAudioLevel, 1.0);
