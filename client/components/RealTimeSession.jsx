@@ -8,7 +8,7 @@ export default function RealTimeSession({
                                           audioContext,
                                           analyser,
                                         }) {
-  const [timeLeft, setTimeLeft] = useState(20);
+  const [timeLeft, setTimeLeft] = useState(120);
 
   useEffect(() => {
     const timer = setInterval(() => {

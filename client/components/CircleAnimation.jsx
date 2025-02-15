@@ -109,7 +109,7 @@ const CircleAnimation = ({ audioContext, analyser, isMuted }) => {
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       analyser.getByteFrequencyData(dataArray);
-      console.log(dataArray);
+      //console.log(dataArray);
       const sum = dataArray.reduce((a, b) => a + b, 0);
       return Math.min(sum / dataArray.length / 255, 0.5);
     };
