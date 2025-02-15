@@ -217,6 +217,26 @@ export default function App() {
       const answerSdp = await sdpResponse.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
+      const mergeAudio = () => {
+
+        const audioCtx = audioContextRef.current;
+        if (!audioCtx || !localStreamRef.current || !audioElement.current) return;
+
+        // Создаем источники для микрофона и аудио элемента
+        const micSource = audioCtx.createMediaStreamSource(localStreamRef.current);
+        const aiSource = audioCtx.createMediaElementSource(audioElement.current);
+
+        // Объединяем аудио через ChannelMergerNode
+        const merger = audioCtx.createChannelMerger(2);
+        micSource.connect(merger, 0, 0);
+        aiSource.connect(merger, 0, 1);
+
+        // Подключаем объединенный сигнал к анализатору
+        merger.connect(analyserRef.current);
+      };
+
+      mergeAudio();
+
       // Обновление состояния
       setSessionState(prev => ({ ...prev, status: "active" }));
       setView("session");
@@ -285,36 +305,6 @@ export default function App() {
     pc.addEventListener("connectionstatechange", updateState);
     return () => pc.removeEventListener("connectionstatechange", updateState);
   }, []);
-
-  // Функция переподключения аудио
-  const reconnectAudio = useCallback(async () => {
-    try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        audio: config.microphoneId
-          ? { deviceId: { exact: config.microphoneId } }
-          : true
-      });
-
-      const newAudioTrack = newStream.getAudioTracks()[0];
-      newAudioTrack.enabled = !sessionState.muted;
-
-      const sender = peerConnection.current
-        .getSenders()
-        .find(s => s.track?.kind === "audio");
-
-      if (sender) {
-        await sender.replaceTrack(newAudioTrack);
-        if (localStreamRef.current) {
-          localStreamRef.current.getTracks().forEach(t => t.stop());
-        }
-        localStreamRef.current = newStream;
-        return true;
-      }
-    } catch (error) {
-      console.error("Ошибка переподключения аудио:", error);
-      return false;
-    }
-  }, [config.microphoneId, sessionState.muted]);
 
   // Обработчик очистки
   const cleanupHandler = useCallback(() => {
