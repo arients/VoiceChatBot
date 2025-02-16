@@ -26,6 +26,7 @@ export default function App() {
   const [isMicLoading, setIsMicLoading] = useState(true);
   const [loadingSession, setLoadingSession] = useState(false);
   const [loadingPrompt, setLoadingPrompt] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
 
   const sessionEndedRef = useRef(false);
   const peerConnection = useRef(null);
@@ -219,6 +220,7 @@ export default function App() {
 
       // Create audio element for incoming audio playback
       audioElement.current = document.createElement("audio");
+      audioElement.current.id = "audioPlayback"; // Set id for volume control
       audioElement.current.crossOrigin = "anonymous";
       audioElement.current.autoplay = true;
 
@@ -375,11 +377,18 @@ export default function App() {
       const response = await fetch("/prompt");
       const data = await response.json();
       setConfig((prev) => ({ ...prev, instructions: data.instruction }));
+      // Also add the generated instruction to chat messages as an AI message
+      setChatMessages((prev) => [...prev, { sender: "ai", text: data.instruction }]);
     } catch (err) {
       console.error("Error fetching prompt:", err);
     } finally {
       setLoadingPrompt(false);
     }
+  };
+
+  // Callback to handle microphone change from RealTimeSession settings modal
+  const handleMicrophoneChange = (newMicId) => {
+    setConfig((prev) => ({ ...prev, microphoneId: newMicId }));
   };
 
   return (
@@ -417,6 +426,9 @@ export default function App() {
           terminateSession={terminateSession}
           audioContext={audioContextRef.current}
           analyser={analyserRef.current}
+          microphones={microphones}
+          onMicrophoneChange={handleMicrophoneChange}
+          chatMessages={chatMessages}
         />
       )}
 
