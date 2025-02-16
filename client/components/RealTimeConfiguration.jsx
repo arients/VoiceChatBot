@@ -60,7 +60,10 @@ export default function RealTimeConfiguration({
       {/* */}
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto overscroll-contain"
-        style={{ maxHeight: "calc(100vh - 2rem)" }}
+        style={{
+          maxHeight: "calc(100vh - 2rem)",
+          paddingBottom: "env(safe-area-inset-bottom)"
+        }}
       >
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Session Settings
