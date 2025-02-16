@@ -56,7 +56,7 @@ export default function RealTimeConfiguration({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd] p-4 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd] p-4 flex items-center justify-center overflow-y-auto">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Session Settings

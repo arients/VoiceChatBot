@@ -13,20 +13,22 @@ body {
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   font-family: "Consolas", "Andale Mono", monospace;
 }
+
 .session-container {
   background-image: linear-gradient(to right, #ffc3a0 0%, #ffafbd 100%);
 }
 
-/* Пример дополнительных стилей для нового интерфейса */
 .app-container {
   min-height: 100vh;
 }
 
 .menu-container {
   text-align: center;
+  padding: 1rem; /* Добавлен отступ для мобильных устройств */
 }
 
 .menu-button {
@@ -34,11 +36,14 @@ body {
 }
 
 .configuration-container {
-  /* Дополнительное оформление можно добавить здесь */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
+  padding: 1.5rem;
+  max-height: 90vh; /* Ограничение высоты для корректного отображения на мобильных */
+  overflow-y: auto; /* Скролл при переполнении */
 }
 
 .siri-circle {
-  /* Базовый стиль кружочка; анимация (например, изменение размера) реализуется через CSS или по событиям в JS */
   transition: transform 0.2s ease;
 }
 
@@ -46,7 +51,7 @@ body {
   position: relative;
   z-index: 1;
   border-radius: 50%;
-  box-shadow: 0 0 40px rgba(0,0,0,0.1);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
 }
 
 .microphone-button {
@@ -59,25 +64,6 @@ body {
   box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
 }
 
-.configuration-container {
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
-}
-
-.voice-circle-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.voice-circle-canvas {
-  border-radius: 50%;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
-}
-
 .voice-controls {
   position: absolute;
   bottom: 20px;
@@ -86,8 +72,8 @@ body {
 }
 
 .control-button {
-  width: 50px;
-  height: 50px;
+  width: 50px !important;
+  height: 50px !important;
   border: none;
   border-radius: 50%;
   background: #6f86d6;
@@ -95,9 +81,10 @@ body {
   font-size: 1.5em;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0;
 }
 
 .control-button:hover {
@@ -113,7 +100,7 @@ body {
 canvas {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
-  -ms-interpolation-mode: nearest-neighbor;
+  -ms-interpolation-mode: nearest-neighbour;
 }
 
 @supports (padding: max(0px)) {
@@ -158,11 +145,53 @@ textarea::-webkit-scrollbar-thumb {
   background-color: #3b82f6;
   border-radius: 4px;
 }
-/* Для мобильных устройств */
+
+/* Исправление для кнопок */
+.control-button {
+  width: 50px !important;
+  height: 50px !important;
+  flex-shrink: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Исправление для Safari */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1em;
+}
+
+/* Анимации */
+.transition-transform {
+  transition-property: transform;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+.ease-in-out {
+  transition-timing-function: ease-in-out;
+}
+
+/* Mobile adjustments */
 @media (max-width: 640px) {
-  .scrollable-content {
-    max-height: 60vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+  .configuration-container {
+    padding: 1rem;
+    max-height: 95vh;
+  }
+  .menu-container {
+    padding: 0.5rem;
+  }
+  .control-button {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 1.2em;
   }
 }

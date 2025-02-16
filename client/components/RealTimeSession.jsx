@@ -96,7 +96,7 @@ export default function RealTimeSession({
 
       {/* Bottom control bar */}
       <div
-        className="absolute bottom-16 left-0 right-0 flex items-center justify-between px-4 z-10"
+        className="absolute bottom-20 left-0 right-0 flex items-center justify-between px-4 z-10"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {/* Chat Button */}
