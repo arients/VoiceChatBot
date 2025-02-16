@@ -158,3 +158,11 @@ textarea::-webkit-scrollbar-thumb {
   background-color: #3b82f6;
   border-radius: 4px;
 }
+/* Для мобильных устройств */
+@media (max-width: 640px) {
+  .scrollable-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
