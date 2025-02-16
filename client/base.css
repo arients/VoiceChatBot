@@ -14,7 +14,7 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
   font-family: "Consolas", "Andale Mono", monospace;
 }
 
@@ -28,7 +28,7 @@ body {
 
 .menu-container {
   text-align: center;
-  padding: 1rem; /* Добавлен отступ для мобильных устройств */
+  padding: 1rem;
 }
 
 .menu-button {
@@ -36,11 +36,11 @@ body {
 }
 
 .configuration-container {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
   padding: 1.5rem;
-  max-height: 90vh; /* Ограничение высоты для корректного отображения на мобильных */
-  overflow-y: auto; /* Скролл при переполнении */
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .siri-circle {
@@ -100,7 +100,6 @@ body {
 canvas {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
-  -ms-interpolation-mode: nearest-neighbour;
 }
 
 @supports (padding: max(0px)) {
@@ -125,13 +124,13 @@ canvas {
   }
 }
 
-/* Улучшение скролла для textarea */
+/* textarea */
 textarea {
   scrollbar-width: thin;
   scrollbar-color: #3b82f6 #f0f0f0;
 }
 
-/* Кастомный скролл для WebKit */
+/* WebKit */
 textarea::-webkit-scrollbar {
   width: 8px;
 }
@@ -146,7 +145,7 @@ textarea::-webkit-scrollbar-thumb {
   border-radius: 4px;
 }
 
-/* Исправление для кнопок */
+/* */
 .control-button {
   width: 50px !important;
   height: 50px !important;
@@ -156,7 +155,7 @@ textarea::-webkit-scrollbar-thumb {
   justify-content: center !important;
 }
 
-/* Исправление для Safari */
+/* Safari */
 select {
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -167,7 +166,7 @@ select {
   background-size: 1em;
 }
 
-/* Анимации */
+/* Animation */
 .transition-transform {
   transition-property: transform;
 }
