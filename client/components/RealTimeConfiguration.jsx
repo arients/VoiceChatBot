@@ -61,7 +61,7 @@ export default function RealTimeConfiguration({
       <div
         className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto overscroll-contain"
         style={{
-          maxHeight: "calc(100vh - 2rem)",
+          maxHeight: "calc(100vh - 2rem - env(safe-area-inset-bottom))",
           paddingBottom: "env(safe-area-inset-bottom)"
         }}
       >
