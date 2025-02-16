@@ -8,13 +8,12 @@ export default function RealTimeSession({
                                           audioContext,
                                           analyser,
                                         }) {
-  const [timeLeft, setTimeLeft] = useState(120);
+  const [timeLeft, setTimeLeft] = useState(360);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-
     return () => clearInterval(timer);
   }, []);
 
@@ -24,24 +23,22 @@ export default function RealTimeSession({
     }
   }, [timeLeft, terminateSession]);
 
-  const formattedTime = `${Math.floor(timeLeft / 60)
-    .toString()
-    .padStart(2, "0")}:${(timeLeft % 60).toString().padStart(2, "0")}`;
+  const formattedTime = `${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(
+    timeLeft % 60
+  ).padStart(2, "0")}`;
 
-  // Дополнительно: обработчики для возобновления AudioContext на уровне документа
+  // Возобновляем AudioContext при взаимодействии с пользователем
   useEffect(() => {
-    const handleUserInteraction = () => {
+    const resumeAudio = () => {
       if (audioContext && audioContext.state === "suspended") {
         audioContext.resume();
       }
     };
-
-    document.addEventListener("touchstart", handleUserInteraction);
-    document.addEventListener("click", handleUserInteraction);
-
+    document.addEventListener("click", resumeAudio);
+    document.addEventListener("touchstart", resumeAudio);
     return () => {
-      document.removeEventListener("touchstart", handleUserInteraction);
-      document.removeEventListener("click", handleUserInteraction);
+      document.removeEventListener("click", resumeAudio);
+      document.removeEventListener("touchstart", resumeAudio);
     };
   }, [audioContext]);
 

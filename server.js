@@ -31,7 +31,7 @@ const MAX_SESSIONS = 20;
 let activeSessions = 0;
 
 server.post("/token", async (request, reply) => {
-  const { model, voice, instructions } = request.body;
+  const { model, voice, instructions, temperature } = request.body;
 
   if (activeSessions >= MAX_SESSIONS) {
     reply.status(429);
@@ -49,6 +49,7 @@ server.post("/token", async (request, reply) => {
         model,
         voice,
         instructions,
+        temperature,
       }),
     });
 
