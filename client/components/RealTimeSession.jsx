@@ -17,43 +17,12 @@ export default function RealTimeSession({
   const [volume, setVolume] = useState(1);
 
   useEffect(() => {
-    // Проверяем поддержку API
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("Распознавание речи не поддерживается в этом браузере.");
-      return;
+    const audioEl = document.getElementById("audioPlayback");
+    if (audioEl) {
+      audioEl.volume = volume;
     }
+  }, [volume]);
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    // Устанавливаем язык (например, русский)
-    recognition.lang = 'ru-RU';
-
-    recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          const transcript = event.results[i][0].transcript.trim();
-          // Добавляем сообщение пользователя в чат
-          setChatMessages((prev) => [
-            ...prev,
-            { sender: "user", text: transcript }
-          ]);
-        }
-      }
-    };
-
-    recognition.onerror = (event) => {
-      console.error("Ошибка распознавания речи:", event.error);
-    };
-
-    recognition.start();
-
-    // Останавливаем распознавание при размонтировании
-    return () => recognition.stop();
-  }, []);
-
-  // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
@@ -71,7 +40,6 @@ export default function RealTimeSession({
     timeLeft % 60
   ).padStart(2, "0")}`;
 
-  // Resume AudioContext on user interaction
   useEffect(() => {
     const resumeAudio = () => {
       if (audioContext && audioContext.state === "suspended") {
@@ -86,7 +54,6 @@ export default function RealTimeSession({
     };
   }, [audioContext]);
 
-  // Update the audio element volume when volume changes
   useEffect(() => {
     const audioEl = document.getElementById("audioPlayback");
     if (audioEl) {
@@ -94,13 +61,9 @@ export default function RealTimeSession({
     }
   }, [volume]);
 
-  // (No input/send in chat modal now – messages are only displayed)
-
-  // Local state for settings modal temporary values
   const [tempMic, setTempMic] = useState("");
   const [tempVolume, setTempVolume] = useState(volume);
 
-  // When settings modal opens, initialize temporary values
   useEffect(() => {
     if (showSettings) {
       setTempMic(microphones.length > 0 ? microphones[0].deviceId : "");
@@ -108,7 +71,6 @@ export default function RealTimeSession({
     }
   }, [showSettings, microphones, volume]);
 
-  // Handle saving settings
   const handleSaveSettings = () => {
     onMicrophoneChange(tempMic);
     setVolume(tempVolume);
