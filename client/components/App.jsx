@@ -223,6 +223,7 @@ export default function App() {
       audioElement.current.id = "audioPlayback"; // Set id for volume control
       audioElement.current.crossOrigin = "anonymous";
       audioElement.current.autoplay = true;
+      document.body.appendChild(audioElement.current);
 
       // Initialize audio context and analyser
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -274,16 +275,15 @@ export default function App() {
       dataChannel.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(data);
+          // console.log(data);
           switch(data.type) {
-            // При стриминге текста от ИИ
             case "response.audio_transcript.done": {
               setChatMessages((prev) => [...prev, { sender: "AI", text: data.transcript }]);
               break;
             }
           }
         } catch (err) {
-          console.error("Ошибка обработки события:", err);
+          console.error("Error:", err);
         }
       };
 
@@ -447,6 +447,7 @@ export default function App() {
           microphones={microphones}
           onMicrophoneChange={handleMicrophoneChange}
           chatMessages={chatMessages}
+          audioElement={audioElement}
         />
       )}
 

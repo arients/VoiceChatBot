@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import CircleAnimation from "./CircleAnimation";
 
 export default function RealTimeSession({
@@ -10,6 +10,7 @@ export default function RealTimeSession({
                                           microphones,
                                           onMicrophoneChange,
                                           chatMessages,
+                                          audioElement,
                                         }) {
   const [timeLeft, setTimeLeft] = useState(360);
   const [showSettings, setShowSettings] = useState(false);
@@ -17,11 +18,10 @@ export default function RealTimeSession({
   const [volume, setVolume] = useState(1);
 
   useEffect(() => {
-    const audioEl = document.getElementById("audioPlayback");
-    if (audioEl) {
-      audioEl.volume = volume;
+    if (audioElement.current) {
+      audioElement.current.volume = volume;
     }
-  }, [volume]);
+  }, [volume, audioElement]);
 
   useEffect(() => {
     const timer = setInterval(() => {
