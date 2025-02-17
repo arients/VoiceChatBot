@@ -16,6 +16,43 @@ export default function RealTimeSession({
   const [showChat, setShowChat] = useState(false);
   const [volume, setVolume] = useState(1);
 
+  useEffect(() => {
+    // Проверяем поддержку API
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("Распознавание речи не поддерживается в этом браузере.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    // Устанавливаем язык (например, русский)
+    recognition.lang = 'ru-RU';
+
+    recognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          const transcript = event.results[i][0].transcript.trim();
+          // Добавляем сообщение пользователя в чат
+          setChatMessages((prev) => [
+            ...prev,
+            { sender: "user", text: transcript }
+          ]);
+        }
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Ошибка распознавания речи:", event.error);
+    };
+
+    recognition.start();
+
+    // Останавливаем распознавание при размонтировании
+    return () => recognition.stop();
+  }, []);
+
   // Timer countdown
   useEffect(() => {
     const timer = setInterval(() => {

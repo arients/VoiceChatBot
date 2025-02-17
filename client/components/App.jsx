@@ -271,6 +271,23 @@ export default function App() {
       // Create data channel
       dataChannel.current = pc.createDataChannel("oai-events");
 
+      dataChannel.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log(data);
+          switch(data.type) {
+            // При стриминге текста от ИИ
+            case "response.audio_transcript.done": {
+              setChatMessages((prev) => [...prev, { sender: "AI", text: data.transcript }]);
+              break;
+            }
+          }
+        } catch (err) {
+          console.error("Ошибка обработки события:", err);
+        }
+      };
+
+
       // Create offer and set SDP
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -387,9 +404,10 @@ export default function App() {
   };
 
   // Callback to handle microphone change from RealTimeSession settings modal
-  const handleMicrophoneChange = (newMicId) => {
+  const handleMicrophoneChange = async (newMicId) => {
     setConfig((prev) => ({ ...prev, microphoneId: newMicId }));
   };
+
 
   return (
     <div className="app-container min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd] relative">

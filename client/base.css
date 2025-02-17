@@ -194,3 +194,7 @@ select {
     font-size: 1.2em;
   }
 }
+
+.set-menu {
+  align-items: center;
+}

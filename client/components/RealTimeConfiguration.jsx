@@ -58,12 +58,10 @@ export default function RealTimeConfiguration({
   return (
     <div className="min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd] p-4 flex items-center justify-center">
       {/* */}
-      <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto overscroll-contain"
-        style={{
-          maxHeight: "calc(100vh - 2rem - env(safe-area-inset-bottom))",
-          paddingBottom: "env(safe-area-inset-bottom)"
-        }}
+      <div className="set-menu min-h-[calc(100vh-9rem)] w-full h-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto"
+           style={{
+             maxHeight: "calc(100vh - 2rem - env(safe-area-inset-bottom))",
+           }}
       >
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Session Settings
