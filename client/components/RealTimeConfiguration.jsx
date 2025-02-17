@@ -58,8 +58,9 @@ export default function RealTimeConfiguration({
   return (
     <div className="min-h-screen bg-gradient-to-r from-[#ffc3a0] to-[#ffafbd] p-4 flex items-center justify-center">
       {/* */}
-      <div className="set-menu min-h-[calc(100vh-9rem)] w-full h-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto"
-           style={{
+      <div
+        className="set-menu min-h-[calc(100vh-11rem)] w-full h-full max-w-md bg-white rounded-2xl shadow-xl p-6 overflow-y-auto"
+        style={{
              maxHeight: "calc(100vh - 2rem - env(safe-area-inset-bottom))",
            }}
       >
